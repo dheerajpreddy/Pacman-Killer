@@ -1,21 +1,31 @@
 #include "ball.h"
 #include "main.h"
+#include "stdlib.h"
 
-Ball::Ball(float x, float y, color_t color) {
+Ball::Ball(float x, float y, float radius, color_t color) {
     this->position = glm::vec3(x, y, 0);
     this->rotation = 0;
-    speed = 0.01;
-    static const GLfloat vertex_buffer_data[] = {
-        -0.2, -0.2, 0, // vertex 1
-        0.2,  -0.2, 0, // vertex 2
-        0.2,  0.2, 0, // vertex 3
+    GLfloat g_vertex_buffer_data[100000];
+    int j=0;
+    int angle = 0;
+    for (int i=0; i<1080; i++) {
+        if(i%3==0){
+            g_vertex_buffer_data[j++] = 0.0f;
+            g_vertex_buffer_data[j++] = 0.0f;
+            g_vertex_buffer_data[j++] = 0.0f;
+        } else if(i%3==1) {
+            g_vertex_buffer_data[j++] = radius*cos((angle*3.1428)/180);
+            g_vertex_buffer_data[j++] = radius*sin((angle*3.1428)/180);
+            g_vertex_buffer_data[j++] = 0.0f;
+            angle+=1;
+        } else {
+            g_vertex_buffer_data[j++] = radius*cos((angle*3.1428)/180);
+            g_vertex_buffer_data[j++] = radius*sin((angle*3.1428)/180);
+            g_vertex_buffer_data[j++] = 0.0f;
+        }
+    }
 
-        0.2,  0.2, 0, // vertex 3
-        -0.2, 0.2, 0, // vertex 4
-        -0.2, -0.2, 0 // vertex 1
-    };
-
-    this->object = create3DObject(GL_TRIANGLES, 6, vertex_buffer_data, color, GL_FILL);
+    this->object = create3DObject(GL_TRIANGLES, 10000, g_vertex_buffer_data, color, GL_FILL);
 }
 
 void Ball::draw(glm::mat4 VP) {
@@ -33,13 +43,19 @@ void Ball::set_position(float x, float y) {
     this->position = glm::vec3(x, y, 0);
 }
 
+void Ball::rand_position() {
+    float x = (rand()%1000)/500;
+    float y = (rand()%1000)/500;
+    this->position = glm::vec3(x, y, 0);
+}
+
 void Ball::tick() {
-    this->position.x -= speed;
-    // this->position.y -= speed;
+    this->position.x -= speed.x;
+    this->position.y -= speed.y;
 }
 
 bounding_box_t Ball::bounding_box() {
     float x = this->position.x, y = this->position.y;
-    bounding_box_t bbox = { x, y, 0.4, 0.4 };
+    bounding_box_t bbox = { x, y, 0.3, 0.3 };
     return bbox;
 }

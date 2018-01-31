@@ -1,6 +1,9 @@
 #include "main.h"
 #include "timer.h"
 #include "ball.h"
+#include "rectangle.h"
+#include "semic.h"
+#include "stdlib.h"
 
 using namespace std;
 
@@ -8,15 +11,19 @@ GLMatrices Matrices;
 GLuint     programID;
 GLFWwindow *window;
 
-/**************************
-* Customizable functions *
-**************************/
-
-Ball ball1, ball2;
+Ball player, balls[150];
+Rectangle ground, grass, slopes[100];
+Semic pool;
+unsigned long long score;
 
 float screen_zoom = 1, screen_center_x = 0, screen_center_y = 0;
 
 Timer t60(1.0 / 60);
+
+float RandomNumber(float Min, float Max)
+{
+    return ((float(rand()) / float(RAND_MAX)) * (Max - Min)) + Min;
+}
 
 /* Render the scene with openGL */
 /* Edit this function according to your assignment */
@@ -50,24 +57,55 @@ void draw() {
     glm::mat4 MVP;  // MVP = Projection * View * Model
 
     // Scene render
-    ball1.draw(VP);
-    ball2.draw(VP);
+    int i;
+    for(i=0; i<15; i++) {
+      balls[i].draw(VP);
+    }
+    ground.draw(VP);
+    grass.draw(VP);
+    pool.draw(VP);
+    player.draw(VP);
 }
 
 void tick_input(GLFWwindow *window) {
-    int left  = glfwGetKey(window, GLFW_KEY_LEFT);
-    int right = glfwGetKey(window, GLFW_KEY_RIGHT);
-    if (left) {
-        // Do something
-    }
+  int up = glfwGetKey(window, GLFW_KEY_UP);
+  int left  = glfwGetKey(window, GLFW_KEY_LEFT);
+  int right = glfwGetKey(window, GLFW_KEY_RIGHT);
+  int down = glfwGetKey(window, GLFW_KEY_DOWN);
+  if (up && player.position.y==-1) {
+    player.speed.y-=0.13;
+  }
+  if (left && player.position.x>=-3.65) {
+    player.position.x-=0.1;
+  }
+  if (right && player.position.x<=3.65) {
+    player.position.x+=0.05;
+  }
 }
 
 void tick_elements() {
-    ball1.tick();
-    ball2.tick();
-    if (detect_collision(ball1.bounding_box(), ball2.bounding_box())) {
-        ball1.speed = -ball1.speed;
-        ball2.speed = -ball2.speed;
+    player.tick();
+    char title[100];
+    int i;
+    for(i=0; i<15; i++) {
+      balls[i].tick();
+      if(balls[i].position.x>4.3) {
+        balls[i].set_position(-4.5, RandomNumber(-0.3, 2.5));
+      }
+      if(player.speed.y>0 && detect_collision(player.bounding_box(), balls[i].bounding_box())) {
+        balls[i].set_position(-4.5, RandomNumber(-0.3, 2.5));
+        player.speed.y -= 0.13;
+        score++;
+        sprintf(title, "SCORE: %llu", score);
+        glfwSetWindowTitle(window, title);
+      }
+    }
+    if(player.position.y<-1) {
+      player.position.y = -1;
+      player.speed.y = 0;
+    }
+    if(player.speed.y!=0) {
+      player.speed.y += 0.005;
     }
 }
 
@@ -76,26 +114,32 @@ void tick_elements() {
 void initGL(GLFWwindow *window, int width, int height) {
     /* Objects should be created before any other gl function and shaders */
     // Create the models
-
-    ball1       = Ball(2, 0, COLOR_RED);
-    ball2       = Ball(-2, 0, COLOR_RED);
-    ball2.speed = -ball2.speed;
-
+    int i;
+    for(i=0; i<15; i++) {
+      balls[i] = Ball(-10, -10, 0.2, COLOR_YELLOW);
+      balls[i].set_position(RandomNumber(-15.0, -4.0), RandomNumber(-0.7, 2.5));
+      balls[i].speed.x = -0.01;
+      balls[i].speed.y = 0;
+    }
+    player = Ball(0, -1, 0.25, COLOR_PURPLE);
+    player.speed.x = player.speed.y = 0;
+    grass = Rectangle(0, -1.5, 10, 0.5, COLOR_GREEN);
+    ground = Rectangle(0, -2.5, 10, 2.5, COLOR_BROWN);
+    pool = Semic(2, -1.85, 0.75, COLOR_BLUE);
+    score = 0;
     // Create and compile our GLSL program from the shaders
     programID = LoadShaders("Sample_GL.vert", "Sample_GL.frag");
     // Get a handle for our "MVP" uniform
     Matrices.MatrixID = glGetUniformLocation(programID, "MVP");
 
-
     reshapeWindow (window, width, height);
 
     // Background color of the scene
-    glClearColor (COLOR_BACKGROUND.r / 256.0, COLOR_BACKGROUND.g / 256.0, COLOR_BACKGROUND.b / 256.0, 0.0f); // R, G, B, A
+    glClearColor (COLOR_BLACK.r / 256.0, COLOR_BLACK.g / 256.0, COLOR_BLACK.b / 256.0, 0.0f); // R, G, B, A
     glClearDepth (1.0f);
 
     glEnable (GL_DEPTH_TEST);
     glDepthFunc (GL_LEQUAL);
-
     cout << "VENDOR: " << glGetString(GL_VENDOR) << endl;
     cout << "RENDERER: " << glGetString(GL_RENDERER) << endl;
     cout << "VERSION: " << glGetString(GL_VERSION) << endl;
@@ -105,8 +149,8 @@ void initGL(GLFWwindow *window, int width, int height) {
 
 int main(int argc, char **argv) {
     srand(time(0));
-    int width  = 600;
-    int height = 600;
+    int width  = 900;
+    int height = 900;
 
     window = initGLFW(width, height);
 
