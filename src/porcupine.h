@@ -1,19 +1,20 @@
 #include "main.h"
 
-#ifndef SEMIC_H
-#define SEMIC_H
+#ifndef PORCUPINE_H
+#define PORCUPINE_H
 
 
-class Semic {
+class Porcupine {
 public:
-    Semic() {}
-    Semic(float x, float y, float radius, color_t color);
+    Porcupine() {}
+    Porcupine(float x, float y, int n, color_t color);
     glm::vec3 position;
     glm::vec3 speed;
+    int n;
     float rotation;
-    float radius;
     void draw(glm::mat4 VP);
     void set_position(float x, float y);
+    void rand_position();
     void tick();
     bounding_box_t bounding_box();
 private:

@@ -37,6 +37,6 @@ void Rectangle::tick() {
 
 bounding_box_t Rectangle::bounding_box() {
     float x = this->position.x, y = this->position.y;
-    bounding_box_t bbox = { x, y, 0.4, 0.4 };
+    bounding_box_t bbox = { x, y, 0.1, 2 };
     return bbox;
 }

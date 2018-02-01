@@ -4,6 +4,7 @@
 Semic::Semic(float x, float y, float radius, color_t color) {
     this->position = glm::vec3(x, y, 0);
     this->rotation = 180;
+    this->radius = radius;
     GLfloat g_vertex_buffer_data[100000];
     int j=0;
     int angle = 0;
@@ -49,6 +50,6 @@ void Semic::tick() {
 
 bounding_box_t Semic::bounding_box() {
     float x = this->position.x, y = this->position.y;
-    bounding_box_t bbox = { x, y, 0.4, 0.4 };
+    bounding_box_t bbox = { x, y - this->radius/2, this->radius*2, this->radius };
     return bbox;
 }

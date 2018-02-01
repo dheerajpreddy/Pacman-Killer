@@ -1,20 +1,27 @@
 #include "main.h"
+#include "math.h"
 #include "timer.h"
 #include "ball.h"
 #include "rectangle.h"
 #include "semic.h"
 #include "stdlib.h"
+#include "porcupine.h"
 
 using namespace std;
+#define PI 3.14159265
 
 GLMatrices Matrices;
 GLuint     programID;
 GLFWwindow *window;
 
 Ball player, balls[150];
-Rectangle ground, grass, slopes[100];
+Rectangle ground, grass, slopes[20];
 Semic pool;
-unsigned long long score;
+Porcupine p[4];
+int N_porcupine;
+bool flag_pool;
+
+long long score;
 
 float screen_zoom = 1, screen_center_x = 0, screen_center_y = 0;
 
@@ -58,7 +65,13 @@ void draw() {
 
     // Scene render
     int i;
+    for(i=0; i<N_porcupine; i++) {
+      p[i].draw(VP);
+    }
     for(i=0; i<15; i++) {
+      if(i%5==0) {
+        slopes[i/5].draw(VP);
+      }
       balls[i].draw(VP);
     }
     ground.draw(VP);
@@ -75,38 +88,113 @@ void tick_input(GLFWwindow *window) {
   if (up && player.position.y==-1) {
     player.speed.y-=0.13;
   }
-  if (left && player.position.x>=-3.65) {
-    player.position.x-=0.1;
+  if (up && flag_pool) {
+    player.speed.y-=0.065;
   }
-  if (right && player.position.x<=3.65) {
-    player.position.x+=0.05;
+  if(!flag_pool) {
+    if (left && player.position.x>=-3.65) {
+      player.position.x-=0.1;
+    }
+    if (right && player.position.x<=3.65) {
+      player.position.x+=0.1;
+    }
+  } else {
+    if (left && player.position.x>=-3.65) {
+      player.position.x-=0.02;
+    }
+    if (right && player.position.x<=3.65) {
+      player.position.x+=0.02;
+    }
   }
 }
 
 void tick_elements() {
     player.tick();
+    p[0].tick();
     char title[100];
     int i;
-    for(i=0; i<15; i++) {
-      balls[i].tick();
-      if(balls[i].position.x>4.3) {
-        balls[i].set_position(-4.5, RandomNumber(-0.3, 2.5));
-      }
-      if(player.speed.y>0 && detect_collision(player.bounding_box(), balls[i].bounding_box())) {
-        balls[i].set_position(-4.5, RandomNumber(-0.3, 2.5));
-        player.speed.y -= 0.13;
-        score++;
-        sprintf(title, "SCORE: %llu", score);
-        glfwSetWindowTitle(window, title);
+    float y;
+    if(player.position.x > pool.position.x-pool.radius && player.position.x<pool.position.x+pool.radius && player.position.y <= -1) {
+      flag_pool = true;
+      player.speed.y += 0.06;
+    } else {
+      flag_pool = false;
+    }
+    if(flag_pool && player.speed.y > 0) {
+      player.speed.y -= 0.03;
+      if(player.position.y <= -1 - pool.radius) {
+        player.speed.y = 0;
+        player.position.y = -1-pool.radius;
       }
     }
-    if(player.position.y<-1) {
+    for(i=0; i<15; i++) {
+      balls[i].tick();
+      if(i%5==0) {
+        slopes[i/5].tick();
+      }
+      y = RandomNumber(-0.3, 2.5);
+      if(balls[i].position.x>4.3) {
+        balls[i].set_position(-4.5, y);
+        if(i%5==0) {
+          slopes[i/5].set_position(-4.5, y);
+        }
+      }
+      if(player.speed.y>0 && detect_collision(player.bounding_box(), balls[i].bounding_box())) {
+        int t;
+        if(i%2) {
+          t = 2;
+        } else {
+          t = 1;
+        }
+        if(i%5==0){
+          glm::vec3 speed;
+          speed.x = speed.y = 0;
+          if(((i/5) % 2) != 0) {
+            speed.x -= 0.093847*cos(slopes[i/5].rotation * PI / 180.0 );
+            speed.y -= 0.093847*sin(slopes[i/5].rotation * PI / 180.0 );
+          } else {
+            speed.x += 0.093847*cos(slopes[i/5].rotation * PI / 180.0 );
+            speed.y += 0.093847*sin(slopes[i/5].rotation * PI / 180.0 );
+          }
+          player.speed = speed;
+          score+=3;
+        } else {
+          y = RandomNumber(-0.3, 2.5);
+          balls[i].set_position(-4.5, y);
+          score+=t;
+          player.speed.y -= 0.13;
+        }
+      }
+    }
+    for(i=0; i<N_porcupine; i++) {
+      if(detect_collision(player.bounding_box(), p[i].bounding_box())) {
+        score-=1;
+        player.speed.y -= 0.13;
+        player.speed.x += 0.13;
+        p[i].set_position(-10, -10);
+      }
+    }
+    if(player.position.y<-1 && !flag_pool) {
       player.position.y = -1;
       player.speed.y = 0;
     }
     if(player.speed.y!=0) {
       player.speed.y += 0.005;
     }
+    if(player.speed.x<0 && player.position.y!=-1) {
+      player.speed.x += 0.001;
+    } else if(player.speed.x>0 && player.position.y!=-1) {
+      player.speed.x -= 0.001;
+    } else if (player.position.y==-1) {
+      player.speed.x = 0;
+    }
+    if(player.position.x> 3.65) {
+      player.position.x = 3.65;
+    } else if (player.position.x < -3.65) {
+      player.position.x = -3.65;
+    }
+    sprintf(title, "SCORE: %lld", score);
+    glfwSetWindowTitle(window, title);
 }
 
 /* Initialize the OpenGL rendering properties */
@@ -115,17 +203,41 @@ void initGL(GLFWwindow *window, int width, int height) {
     /* Objects should be created before any other gl function and shaders */
     // Create the models
     int i;
+    N_porcupine = 0;
+    color_t color;
+    float x, y;
     for(i=0; i<15; i++) {
-      balls[i] = Ball(-10, -10, 0.2, COLOR_YELLOW);
-      balls[i].set_position(RandomNumber(-15.0, -4.0), RandomNumber(-0.7, 2.5));
+      if(i%2) {
+        color = COLOR_YELLOW;
+      } else {
+        color = COLOR_BROWN;
+      }
+      x = RandomNumber(-15.0, -4.0);
+      y = RandomNumber(-0.7, 2.5);
+      balls[i] = Ball(x, y, 0.2, color);
       balls[i].speed.x = -0.01;
       balls[i].speed.y = 0;
+      if(i%5==0) {
+        slopes[i/5] = Rectangle(x, y, 0.1, 0.7, COLOR_LIGHTRED);
+        slopes[i/5].speed.x = -0.01;
+        slopes[i/5].speed.y = 0;
+        if(((i/5) % 2) != 0) {
+          slopes[i/5].rotation = 45;
+        } else {
+          slopes[i/5].rotation = -45;
+        }
+      }
+    }
+    for(i=0; i<N_porcupine; i++) {
+      x = RandomNumber(-4.3, 4.3);
+      int num = RandomNumber(2, 5);
+      p[i] = Porcupine(x, -1.25, num, COLOR_DARKRED);
     }
     player = Ball(0, -1, 0.25, COLOR_PURPLE);
     player.speed.x = player.speed.y = 0;
     grass = Rectangle(0, -1.5, 10, 0.5, COLOR_GREEN);
     ground = Rectangle(0, -2.5, 10, 2.5, COLOR_BROWN);
-    pool = Semic(2, -1.85, 0.75, COLOR_BLUE);
+    pool = Semic(-2, -1.85, 1.5, COLOR_BLUE);
     score = 0;
     // Create and compile our GLSL program from the shaders
     programID = LoadShaders("Sample_GL.vert", "Sample_GL.frag");
