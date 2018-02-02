@@ -20,6 +20,7 @@ Semic pool;
 Porcupine p[4];
 int N_porcupine;
 bool flag_pool;
+int theta;
 
 long long score;
 
@@ -99,20 +100,37 @@ void tick_input(GLFWwindow *window) {
       player.position.x+=0.1;
     }
   } else {
-    if (left && player.position.x>=-3.65) {
-      player.position.x-=0.02;
+    if (right) {
+      if(theta>180){
+        flag_pool = false;
+        theta = 0;
+      }
+      else {
+        theta+=1;
+        player.position.x=pool.position.x -(pool.radius)*cos(theta * PI / 180.0 );
+        player.position.y = pool.position.y - (pool.radius)*sin(theta * PI / 180.0 ) + 0.8;
+      }
     }
-    if (right && player.position.x<=3.65) {
-      player.position.x+=0.02;
+    if (left) {
+      if(theta<0){
+        flag_pool = false;
+        theta = 180;
+      } else {
+        theta-=1;
+        player.position.x=pool.position.x - (pool.radius)*cos(theta * PI / 180.0 );
+        player.position.y = pool.position.y - (pool.radius)*sin(theta * PI / 180.0 ) + 0.8;
+      }
     }
   }
 }
 
 void tick_elements() {
     player.tick();
-    p[0].tick();
     char title[100];
     int i;
+    for(i=0; i<N_porcupine; i++) {
+      p[i].tick();
+    }
     float y;
     if(player.position.x > pool.position.x-pool.radius && player.position.x<pool.position.x+pool.radius && player.position.y <= -1) {
       flag_pool = true;
@@ -122,9 +140,8 @@ void tick_elements() {
     }
     if(flag_pool && player.speed.y > 0) {
       player.speed.y -= 0.03;
-      if(player.position.y <= -1 - pool.radius) {
+      if(player.position.y < -1 - pool.radius) {
         player.speed.y = 0;
-        player.position.y = -1-pool.radius;
       }
     }
     for(i=0; i<15; i++) {
@@ -203,6 +220,7 @@ void initGL(GLFWwindow *window, int width, int height) {
     /* Objects should be created before any other gl function and shaders */
     // Create the models
     int i;
+    theta = 0;
     N_porcupine = 0;
     color_t color;
     float x, y;
