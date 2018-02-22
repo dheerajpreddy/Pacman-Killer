@@ -6,6 +6,8 @@
 #include "semic.h"
 #include "stdlib.h"
 #include "porcupine.h"
+#include "magnet.h"
+#include "trampoline.h"
 
 using namespace std;
 #define PI 3.14159265
@@ -17,14 +19,18 @@ GLFWwindow *window;
 Ball player, balls[150];
 Rectangle ground, grass, slopes[20];
 Semic pool;
-Porcupine p[4];
-int N_porcupine;
-bool flag_pool;
-int theta;
+Porcupine p[4], pup[70];
+Magnet mag;
+Trampoline tramp;
 
-long long score;
+int N_porcupine;
+bool isPool=false, flag_pool=false, isMagnet=false, isUnderMag=false, isTramp=false, pOnTramp=false, level4=false;
+float theta;
+
+long long score, level;
 
 float screen_zoom = 1, screen_center_x = 0, screen_center_y = 0;
+bool pUnderMag(bounding_box_t a, bounding_box_t b);
 
 Timer t60(1.0 / 60);
 
@@ -66,6 +72,16 @@ void draw() {
 
     // Scene render
     int i;
+    if(level4) {
+      for(i=0; i<50; i++) {
+        pup[i].draw(VP);
+      }
+    }
+    if(isTramp) {
+      tramp.draw(VP);
+    }
+    if(isMagnet)
+      mag.draw(VP);
     for(i=0; i<N_porcupine; i++) {
       p[i].draw(VP);
     }
@@ -77,7 +93,9 @@ void draw() {
     }
     ground.draw(VP);
     grass.draw(VP);
-    pool.draw(VP);
+    if(isPool){
+      pool.draw(VP);
+    }
     player.draw(VP);
 }
 
@@ -94,10 +112,14 @@ void tick_input(GLFWwindow *window) {
   }
   if(!flag_pool) {
     if (left && player.position.x>=-3.65) {
-      player.position.x-=0.1;
+      if(!detect_collision(player.bounding_box(), tramp.bounding_box())) {
+        player.position.x-=0.1;
+      }
     }
     if (right && player.position.x<=3.65) {
-      player.position.x+=0.1;
+      if(!detect_collision(player.bounding_box(), tramp.bounding_box())) {
+        player.position.x+=0.1;
+      }
     }
   } else {
     if (right) {
@@ -110,6 +132,10 @@ void tick_input(GLFWwindow *window) {
         player.position.x=pool.position.x -(pool.radius)*cos(theta * PI / 180.0 );
         player.position.y = pool.position.y - (pool.radius)*sin(theta * PI / 180.0 ) + 0.8;
       }
+    } else if(theta<90){
+      theta+=0.5;
+      player.position.x=pool.position.x -(pool.radius)*cos(theta * PI / 180.0 );
+      player.position.y = pool.position.y - (pool.radius)*sin(theta * PI / 180.0 ) + 0.8;
     }
     if (left) {
       if(theta<0){
@@ -120,6 +146,10 @@ void tick_input(GLFWwindow *window) {
         player.position.x=pool.position.x - (pool.radius)*cos(theta * PI / 180.0 );
         player.position.y = pool.position.y - (pool.radius)*sin(theta * PI / 180.0 ) + 0.8;
       }
+    } else if(theta>90) {
+      theta-=0.5;
+      player.position.x=pool.position.x - (pool.radius)*cos(theta * PI / 180.0 );
+      player.position.y = pool.position.y - (pool.radius)*sin(theta * PI / 180.0 ) + 0.8;
     }
   }
 }
@@ -131,19 +161,62 @@ void tick_elements() {
     for(i=0; i<N_porcupine; i++) {
       p[i].tick();
     }
-    float y;
-    if(player.position.x > pool.position.x-pool.radius && player.position.x<pool.position.x+pool.radius && player.position.y <= -1) {
-      flag_pool = true;
-      player.speed.y += 0.06;
-    } else {
-      flag_pool = false;
-    }
-    if(flag_pool && player.speed.y > 0) {
-      player.speed.y -= 0.03;
-      if(player.position.y < -1 - pool.radius) {
-        player.speed.y = 0;
+    if(level4) {
+      for(i=0; i<50; i++) {
+        pup[i].tick();
+        if(abs(pup[i].position.x)>=4.3) {
+          pup[i].speed.x = -pup[i].speed.x;
+        }
+        if(detect_collision(player.bounding_box(), pup[i].bounding_box())) {
+          score-=10;
+          player.speed.y -= 0.13;
+          player.speed.x += 0.13;
+        }
       }
     }
+    float y;
+    if(isTramp) {
+      tramp.tick();
+      if(!pOnTramp && player.speed.y>0 && detect_collision(player.bounding_box(), tramp.bounding_box())) {
+          pOnTramp = pUnderMag(player.bounding_box(), tramp.bounding_box());
+          if(pOnTramp) {
+            player.speed.y -= 0.35;
+          }
+      } else if (pOnTramp && player.speed.y>0) {
+        if(detect_collision(player.bounding_box(), tramp.bounding_box())) {
+          player.position.y = -1.25 + 0.5;
+        }
+        pOnTramp = pUnderMag(player.bounding_box(), tramp.bounding_box());
+      }
+    }
+    if(isMagnet) {
+      mag.tick();
+      isUnderMag = pUnderMag(player.bounding_box(), mag.bounding_box());
+      if(player.position.y==-1 && isUnderMag) {
+        player.speed.y -= 0.13;
+      }
+      if(detect_collision(player.bounding_box(), mag.bounding_box()) || player.position.y>=mag.position.y) {
+        player.speed.y = 0;
+      }
+      if(!isUnderMag && player.speed.y <= 0 && player.position.y!=-1) {
+        player.speed.y += 0.005;
+      }
+    }
+    if(isPool) {
+      if(player.position.x > pool.position.x-pool.radius && player.position.x<pool.position.x+pool.radius && player.position.y <= -1) {
+        flag_pool = true;
+        player.speed.y += 0.06;
+      } else {
+        flag_pool = false;
+      }
+      if(flag_pool && player.speed.y > 0) {
+        player.speed.y -= 0.03;
+        if(player.position.y < -1 - pool.radius) {
+          player.speed.y = 0;
+        }
+      }
+    }
+
     for(i=0; i<15; i++) {
       balls[i].tick();
       if(i%5==0) {
@@ -184,6 +257,9 @@ void tick_elements() {
       }
     }
     for(i=0; i<N_porcupine; i++) {
+      if(abs(p[i].position.x)>=4.3) {
+        p[i].speed.x = -p[i].speed.x;
+      }
       if(detect_collision(player.bounding_box(), p[i].bounding_box())) {
         score-=1;
         player.speed.y -= 0.13;
@@ -195,7 +271,7 @@ void tick_elements() {
       player.position.y = -1;
       player.speed.y = 0;
     }
-    if(player.speed.y!=0) {
+    if((player.speed.y!=0 && !isUnderMag) || (player.speed.y!=0 && pOnTramp)) {
       player.speed.y += 0.005;
     }
     if(player.speed.x<0 && player.position.y!=-1) {
@@ -210,7 +286,48 @@ void tick_elements() {
     } else if (player.position.x < -3.65) {
       player.position.x = -3.65;
     }
-    sprintf(title, "SCORE: %lld", score);
+    if(score>=90 && level<4) {
+      level = 4;
+      level4 = true;
+      for(i=0; i<50; i++) {
+        float x = RandomNumber(-4.3, 4.3);
+        int num = RandomNumber(2, 5);
+        pup[i] = Porcupine(x, -1.25, num, COLOR_DARKRED);
+        pup[i].speed.x = 0.01;
+      }
+      isMagnet = false;
+      mag.set_position(-10, -10);
+      for(i=0; i<N_porcupine; i++) {
+        p[i].set_position(-10, -10);
+      }
+      N_porcupine = 0;
+    } else if(score>=60 && level<3) {
+      level = 3;
+      isPool = false;
+      pool.set_position(-10, -10);
+      tramp.set_position(-10, -10);
+      isTramp = false;
+      isMagnet = true;
+      mag = Magnet(-2.5, 2, COLOR_DARKRED);
+      N_porcupine = 3;
+      for(i=0; i<N_porcupine; i++) {
+        float x = RandomNumber(-4.3, 4.3);
+        int num = RandomNumber(2, 5);
+        p[i] = Porcupine(x, -1.25, num, COLOR_DARKRED);
+        p[i].speed.x = 0.01;
+      }
+    } else if(score>=30 && level<2) {
+      level = 2;
+      isPool = true;
+      isTramp = true;
+      tramp = Trampoline(1, -1.25, COLOR_RED);
+      pool = Semic(-2, -1.85, 1.5, COLOR_BLUE);
+    }
+    if(level4){
+      sprintf(title, "LEVEL: THE FLOOR IS LAVA; SCORE: %lld", score);
+    } else {
+      sprintf(title, "LEVEL: %lld; SCORE: %lld", level, score);
+    }
     glfwSetWindowTitle(window, title);
 }
 
@@ -220,6 +337,7 @@ void initGL(GLFWwindow *window, int width, int height) {
     /* Objects should be created before any other gl function and shaders */
     // Create the models
     int i;
+    level = 1;
     theta = 0;
     N_porcupine = 0;
     color_t color;
@@ -255,7 +373,15 @@ void initGL(GLFWwindow *window, int width, int height) {
     player.speed.x = player.speed.y = 0;
     grass = Rectangle(0, -1.5, 10, 0.5, COLOR_GREEN);
     ground = Rectangle(0, -2.5, 10, 2.5, COLOR_BROWN);
-    pool = Semic(-2, -1.85, 1.5, COLOR_BLUE);
+    if(isPool) {
+      pool = Semic(-2, -1.85, 1.5, COLOR_BLUE);
+    }
+    if(isMagnet) {
+      mag = Magnet(-2.5, 2, COLOR_DARKRED);
+    }
+    if(isTramp) {
+      tramp = Trampoline(1, -1.25, COLOR_RED);
+    }
     score = 0;
     // Create and compile our GLSL program from the shaders
     programID = LoadShaders("Sample_GL.vert", "Sample_GL.frag");
@@ -311,6 +437,14 @@ int main(int argc, char **argv) {
 bool detect_collision(bounding_box_t a, bounding_box_t b) {
     return (abs(a.x - b.x) * 2 < (a.width + b.width)) &&
            (abs(a.y - b.y) * 2 < (a.height + b.height));
+}
+
+bool pUnderMag(bounding_box_t a, bounding_box_t b) {
+    if(a.x > b.x-b.width && a.x < b.x+b.width) {
+      return true;
+    } else {
+      return false;
+    }
 }
 
 void reset_screen() {
